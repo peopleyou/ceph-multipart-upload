@@ -2,8 +2,14 @@
 <html>
 <head>
     <title>大文件分片上传</title>
+
+    <link rel="stylesheet" href="../layer/layui.css">
+
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.6.4/jquery.js"></script>
-    <script type="text/javascript" src="FileS3Upload.js"></script>
+    <script type="text/javascript" src="../layer/layer.js"></script>
+    <script type="text/javascript" src="namespace.js"></script>
+    <script type="text/javascript" src="AppHelper.js"></script>
+    <script type="text/javascript" src="S3FileMultipartUploadHelper.js"></script>
 </head>
 <body>
 <h1>测试大文件分片上传</h1>
@@ -17,29 +23,8 @@
         $('#files').change(function (evt) {
             var file = evt.target.files[0];
 
-            var fileUploadTest = new FileS3Upload({
-                aws_url: "http://192.168.30.23/school-repo",
-                file_name: file.name,
-                file: file,
-                auth_url: "http://localhost:8080/signv4_auth",
-                bucket: "school-repo",
-                aws_key_id: "U2A27HEBIS06RIF3JOBC",
-                auth_url_headers: {},
-                on_get_upload_id: function (xhr, uploadId) {
-                    console.log("获取uploadLoadId回调：uploadId=" + uploadId);
-                },
-                on_progress: function (total, loaded) {
-                    console.log("上传进度变更回调：upload percent=" + (loaded / total * 100).toFixed(2) + "%");
-                },
-                on_part_upload: function (xhr, ETag, current_part) {
-                    console.log("上传分片成功回调：ETag=" + ETag + "; current_part=" + current_part);
-                },
-                on_multipart_upload_complete: function (xhr) {
-                    console.log("上传成功");
-                }
-            });
-
-            fileUploadTest.init_multipart_upload();
+            var fileMultiPartUploader = new S3FileMultipartUploadHelper(file);
+            fileMultiPartUploader.initAndUploadFile();
         });
     });
 </script>
