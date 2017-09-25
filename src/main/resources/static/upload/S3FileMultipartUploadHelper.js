@@ -21,7 +21,26 @@ var S3FileMultipartUploadHelper = function (file) {
     me.loaded = 0;
     me.currentPart = 1;
     me.parts = [];
+    /**
+     * 本次分片上传id
+     */
     me.uploadId = null;
+    /**
+     * 当前是否被取消上传
+     */
+    me.abort = false;
+    /**
+     * 当前是否有正在上传的分片
+     */
+    me.uploadingPart = false;
+    /**
+     * 当前是否上传成功
+     */
+    me.uploadFinished = false;
+    /**
+     * 直到当前分片上传成功，才取消本次分片上传，用于当前分片上传成功时的回调
+     */
+    me.abortOnCurrentPartUploaded = null;
 
     /**
      * 初始化连接并开始分片上传文件
@@ -36,6 +55,55 @@ var S3FileMultipartUploadHelper = function (file) {
         me._initMultipartUpload();
         //上传分片
         me._sendPart();
+    };
+
+    /**
+     * 取消本次分片上传
+     */
+    me.abortUpload = function () {
+        if (AppHelper.isNull(me.uploadId)) {
+            return;
+        }
+        //已上传成功
+        if (me.uploadFinished) {
+            return;
+        }
+
+        me.abort = true;
+
+        //直到当前分片上传成功，才取消本次分片上传
+        if (me.uploadingPart) {
+            me.abortOnCurrentPartUploaded = me._doAbortUpload;
+        } else {
+            me._doAbortUpload();
+        }
+    };
+    /**
+     * 取消本次分片上传
+     */
+    me._doAbortUpload = function () {
+        var suffixToSign = '?uploadId=' + me.uploadId;
+
+        var dateGmt = new Date().toUTCString();
+        var signatureForAbort = me._signRequest('DELETE', suffixToSign, '', dateGmt);
+        if (AppHelper.isNull(signatureForAbort)) {
+            return;
+        }
+
+        var xhr = me._getXmlHttp();
+        xhr.open('DELETE', me._joinUrlElements(me.awsUrl, '/' + me.fileName + suffixToSign));         //TODO: 这里的 me.fileName需要换成 me.fileUUID
+        xhr.setRequestHeader('Authorization', 'AWS ' + me.awsKeyId + ':' + signatureForAbort);
+        xhr.setRequestHeader('x-amz-date', dateGmt);
+        xhr.onreadystatechange = function(){
+            if (xhr.readyState == 4) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    console.log('Abort');
+                    //TODO: 取消本次分片上传回调
+                    me._onMultipartUploadAbort();
+                }
+            }
+        };
+        xhr.send(null);
     };
 
     /**
@@ -105,12 +173,15 @@ var S3FileMultipartUploadHelper = function (file) {
                     //TODO: 上传分片成功的回调
                     me._onPartUpload(ETag, me.currentPart);
 
-                    me.currentPart += 1;
+                    //如果取消上传，则上传完当前分片后，不需要再上传后续
+                    if (!me.abort) {
+                        me.currentPart += 1;
 
-                    //递归调用上传分片
-                    setTimeout(function () {  // to avoid recursion
-                        me._sendPart();
-                    }, 50);
+                        //递归调用上传分片
+                        setTimeout(function () {  // to avoid recursion
+                            me._sendPart();
+                        }, 50);
+                    }
                 } else if (xhr.readyState == 0) {
                     //on_abort 错
                     //TODO: 在这里需要考虑重传的问题
@@ -120,7 +191,12 @@ var S3FileMultipartUploadHelper = function (file) {
                 }
             }
         };
-        xhr.send(blob);
+
+        if (!me.abort) {
+            xhr.send(blob);
+            //当前正在上传分片
+            me.uploadingPart = true;
+        }
     };
 
     /**
@@ -219,12 +295,30 @@ var S3FileMultipartUploadHelper = function (file) {
      */
     me._onPartUpload = function (ETag, currentPart) {
         console.log("上传分片成功回调：ETag=" + ETag + "; currentPart=" + currentPart);
+
+        me.uploadingPart = false;
+
+        if (typeof me.abortOnCurrentPartUploaded == "function") {
+            me.abortOnCurrentPartUploaded();
+        }
     };
     /**
      * 上传完成回调
      */
     me._onMultipartUploadComplete = function () {
         console.log("上传完成回调");
+
+        me.uploadFinished = true;
+    };
+    /**
+     * 取消本次分片上传成功回调
+     */
+    me._onMultipartUploadAbort = function () {
+        console.log("取消本次分片上传回调");
+
+        //释放浏览器空间
+        me.file = null;
+        me.parts = [];
     };
 
 
@@ -241,11 +335,10 @@ var S3FileMultipartUploadHelper = function (file) {
             signature,
             toSign = method + '\n\n' + contentType +
                 '\n\nx-amz-date:' + dateGmt + '\n/'
-                + me.awsBucket + '/' + me.fileName
+                + me.awsBucket + '/' + me.fileName                          //TODO: 这里的 me.fileName需要换成 me.fileUUID
                 + suffixToSign;
 
         xhr.open('GET', me._joinUrlElements(me.authUrl, '/?to_sign=' + encodeURIComponent(toSign)), false);
-        xhr.setRequestHeader("Authorization", AppHelper.Jwt.getJwtToken());
 
         xhr.send(null);
 
@@ -258,11 +351,7 @@ var S3FileMultipartUploadHelper = function (file) {
         }
 
         if (AppHelper.isNull(signature)) {
-            layer.open({
-                title: '系统提示',
-                area: ['460px', '240px'],
-                content: '<div class="system-tips"><span>！</span><p>服务端获取请求签名失败</p></div>'
-            });
+            throw "服务端获取请求签名失败";
         }
 
         return signature;

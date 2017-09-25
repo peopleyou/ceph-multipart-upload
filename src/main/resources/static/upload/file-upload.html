@@ -5,7 +5,7 @@
 
     <link rel="stylesheet" href="../layer/layui.css">
 
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.6.4/jquery.js"></script>
+    <script type="text/javascript" src="jquery.min.js?v=2.1.4"></script>
     <script type="text/javascript" src="../layer/layer.js"></script>
     <script type="text/javascript" src="namespace.js"></script>
     <script type="text/javascript" src="AppHelper.js"></script>
@@ -15,16 +15,24 @@
 <h1>测试大文件分片上传</h1>
 <div>
     <h2>Demo</h2>
-    <input type="file" id="files" />
+    <input type="file" id="files" /><br>
+    <input type="button" id="btnCancel" value="取消上传"/>
 </div>
 
 <script type="text/javascript">
+    var fileMultiPartUploader = null;
     $(document).ready(function () {
+        //分片上传
         $('#files').change(function (evt) {
             var file = evt.target.files[0];
 
-            var fileMultiPartUploader = new S3FileMultipartUploadHelper(file);
+            fileMultiPartUploader = new S3FileMultipartUploadHelper(file);
             fileMultiPartUploader.initAndUploadFile();
+        });
+
+        //取消本次分片上传
+        $("#btnCancel").on("click", function () {
+            fileMultiPartUploader.abortUpload();
         });
     });
 </script>
