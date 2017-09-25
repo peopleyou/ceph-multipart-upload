@@ -16,7 +16,15 @@
 <div>
     <h2>Demo</h2>
     <input type="file" id="files" /><br>
-    <input type="button" id="btnCancel" value="取消上传"/>
+    <input type="button" id="btnCancel" value="取消上传"/><br>
+    <input type="button" id="btnPause" value="暂停上传"/><br>
+    <input type="button" id="btnResume" value="继续上传"/><br>
+
+    <div id="divUploadProgress">
+    </div>
+
+    <div id="divNetworkStatus">
+    </div>
 </div>
 
 <script type="text/javascript">
@@ -34,6 +42,49 @@
         $("#btnCancel").on("click", function () {
             fileMultiPartUploader.abortUpload();
         });
+        //暂停本次分片上传
+        $("#btnPause").on("click", function () {
+            fileMultiPartUploader.pauseUpload();
+        });
+        //继续本次分片上传
+        $("#btnResume").on("click", function () {
+            fileMultiPartUploader.resumeUpload();
+        });
+    });
+
+    window.addEventListener('load', function() {
+        function updateOnlineStatus(event) {
+            var status = navigator.onLine ? "online" : "offline";
+            $("#divNetworkStatus").html(status);
+
+            if (navigator.onLine) {
+                if (fileMultiPartUploader.uploadFinished
+                    || AppHelper.isNull(fileMultiPartUploader.uploadId)) {
+                    return;
+                } else if (fileMultiPartUploader.abort) {
+                    //取消上传
+                    if (!fileMultiPartUploader.aborted) {
+                        fileMultiPartUploader.abortUpload();
+                    }
+                } else if (fileMultiPartUploader.pause) {
+                    //暂停上传
+                    return;
+                } else if (fileMultiPartUploader.failedOnDisconnect) {
+                    //文件未上传完毕，网络断开
+                    if (fileMultiPartUploader.uploadingPart) {
+                        //正在上传一个分片，则重新上传当前分片
+                        fileMultiPartUploader._sendPart();
+                    } else {
+                        //已上传完一个分片，则从下一个分片开始上传
+                        fileMultiPartUploader.currentPart += 1;
+                        fileMultiPartUploader._sendPart();
+                    }
+                }
+            }
+        }
+
+        window.addEventListener('online',  updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
     });
 </script>
 </body>

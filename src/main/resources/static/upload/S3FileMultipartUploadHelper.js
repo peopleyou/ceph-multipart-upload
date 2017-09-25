@@ -30,6 +30,14 @@ var S3FileMultipartUploadHelper = function (file) {
      */
     me.abort = false;
     /**
+     * 当前是否取消上传成功
+     */
+    me.aborted = false;
+    /**
+     * 当前是否被暂停上传
+     */
+    me.pause = false;
+    /**
      * 当前是否有正在上传的分片
      */
     me.uploadingPart = false;
@@ -41,6 +49,10 @@ var S3FileMultipartUploadHelper = function (file) {
      * 直到当前分片上传成功，才取消本次分片上传，用于当前分片上传成功时的回调
      */
     me.abortOnCurrentPartUploaded = null;
+    /**
+     * 是否因为网盘断开失败，从而导致上传失败
+     */
+    me.failedOnDisconnect = false;
 
     /**
      * 初始化连接并开始分片上传文件
@@ -55,6 +67,43 @@ var S3FileMultipartUploadHelper = function (file) {
         me._initMultipartUpload();
         //上传分片
         me._sendPart();
+    };
+
+    /**
+     * 暂停本次分片上传
+     */
+    me.pauseUpload = function () {
+        if (AppHelper.isNull(me.uploadId)) {
+            return;
+        }
+        //已上传成功
+        if (me.uploadFinished) {
+            return;
+        }
+
+        me.pause = true;
+
+        //直到当前分片上传成功，才取消本次分片上传
+    };
+
+    /**
+     * 继续本次分片上传
+     */
+    me.resumeUpload = function () {
+        if (AppHelper.isNull(me.uploadId)) {
+            return;
+        }
+        //已上传成功
+        if (me.uploadFinished) {
+            return;
+        }
+
+        me.pause = false;
+
+        if (!me.uploadingPart) {
+            me.currentPart += 1;
+            me._sendPart();
+        }
     };
 
     /**
@@ -173,8 +222,8 @@ var S3FileMultipartUploadHelper = function (file) {
                     //TODO: 上传分片成功的回调
                     me._onPartUpload(ETag, me.currentPart);
 
-                    //如果取消上传，则上传完当前分片后，不需要再上传后续
-                    if (!me.abort) {
+                    //如果取消上传/暂停上传，则上传完当前分片后，不需要再上传后续
+                    if (!me.abort && !me.pause) {
                         me.currentPart += 1;
 
                         //递归调用上传分片
@@ -192,7 +241,7 @@ var S3FileMultipartUploadHelper = function (file) {
             }
         };
 
-        if (!me.abort) {
+        if (!me.abort && !me.pause) {
             xhr.send(blob);
             //当前正在上传分片
             me.uploadingPart = true;
@@ -288,7 +337,19 @@ var S3FileMultipartUploadHelper = function (file) {
      * 上传进度变更回调
      */
     me._onProgressChanged = function (total, loaded) {
-        console.log("上传进度变更回调：upload percent=" + (loaded / total * 100).toFixed(2) + "%");
+        if (!me.pause) {
+            console.log("上传进度变更回调：upload percent=" + (loaded / total * 100).toFixed(2) + "%");
+            $("#divUploadProgress").empty();
+            $("#divUploadProgress").append(me._buildUploadProgress(total, loaded));
+        } else {
+            console.log("上传进度变更回调：当前是暂停状态");
+            $("#divUploadProgress").empty();
+            $("#divUploadProgress").append(me._buildUploadProgress(total, loaded));
+            $("#divUploadProgress").append("<span>上传进度变更回调：当前是暂停状态</span>");
+        }
+    };
+    me._buildUploadProgress = function (total, loaded) {
+        return "<span>上传进度变更回调：upload percent=" + (loaded / total * 100).toFixed(2) + "%" + "</span><br>";
     };
     /**
      * 上传分片成功回调
@@ -315,6 +376,8 @@ var S3FileMultipartUploadHelper = function (file) {
      */
     me._onMultipartUploadAbort = function () {
         console.log("取消本次分片上传回调");
+
+        me.aborted = true;
 
         //释放浏览器空间
         me.file = null;
@@ -375,12 +438,9 @@ var S3FileMultipartUploadHelper = function (file) {
             xmlhttp = new XMLHttpRequest();
         }
         xmlhttp.onerror = function () {
-            layer.open({
-                title: '系统提示',
-                area: ['460px', '240px'],
-                content: '<div class="system-tips"><span>！</span><p>ceph 服务器请求失败</p></div>'
-            });
-            //TODO: 在这里需要考虑重传的问题
+            //需要考虑重传的问题
+            console.log("ceph 服务器请求失败，可能是网络断开");
+            me.failedOnDisconnect = true;
         };
         return xmlhttp;
     };
