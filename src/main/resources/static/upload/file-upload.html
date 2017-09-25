@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>大文件分片上传</title>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.6.4/jquery.js"></script>
+    <script type="text/javascript" src="FileS3Upload.js"></script>
+</head>
+<body>
+<h1>测试大文件分片上传</h1>
+<div>
+    <h2>Demo</h2>
+    <input type="file" id="files" />
+</div>
+
+<script type="text/javascript">
+    $(document).ready(function () {
+        $('#files').change(function (evt) {
+            var file = evt.target.files[0];
+
+            var fileUploadTest = new FileS3Upload({
+                aws_url: "http://192.168.30.23/school-repo",
+                file_name: file.name,
+                file: file,
+                auth_url: "http://localhost:8080/signv4_auth",
+                bucket: "school-repo",
+                aws_key_id: "U2A27HEBIS06RIF3JOBC",
+                auth_url_headers: {},
+            });
+
+            fileUploadTest.init_multipart_upload();
+            fileUploadTest._send_part();
+        });
+    });
+</script>
+</body>
+</html>
