@@ -21,6 +21,7 @@ var S3FileMultipartUploadHelper = function (file) {
     me.loaded = 0;
     me.currentPart = 1;
     me.parts = [];
+
     /**
      * 本次分片上传id
      */
@@ -34,7 +35,7 @@ var S3FileMultipartUploadHelper = function (file) {
      */
     me.aborted = false;
     /**
-     * 当前是否被暂停上传
+     * 当前是否暂停上传
      */
     me.pause = false;
     /**
@@ -50,7 +51,7 @@ var S3FileMultipartUploadHelper = function (file) {
      */
     me.abortOnCurrentPartUploaded = null;
     /**
-     * 是否因为网盘断开失败，从而导致上传失败
+     * 是否因为网络断开失败，从而导致上传失败
      */
     me.failedOnDisconnect = false;
 
@@ -104,6 +105,35 @@ var S3FileMultipartUploadHelper = function (file) {
             me.currentPart += 1;
             me._sendPart();
         }
+    };
+
+    /**
+     * 当网络恢复连接时，断点续传
+     */
+    me.resumeUploadOnReOnline = function () {
+        if (me.uploadFinished
+            || fileMultiPartUploader.pause
+            || AppHelper.isNull(me.uploadId)) {
+            //上传成功或者上传暂停或者本次分片上传id未获取成功
+            return;
+        } else if (me.abort) {
+            //取消上传
+            if (!me.aborted) {
+                me.abortUpload();
+            }
+        } else if (me.failedOnDisconnect) {
+            //文件未上传完毕的时候，网络断开
+            if (me.uploadingPart) {
+                //正在上传一个分片，则重新上传当前分片
+                me._sendPart();
+            } else {
+                //已上传完一个分片，则从下一个分片开始上传
+                me.currentPart += 1;
+                me._sendPart();
+            }
+
+            me.failedOnDisconnect = false;
+       }
     };
 
     /**
