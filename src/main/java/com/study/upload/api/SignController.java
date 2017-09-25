@@ -19,7 +19,7 @@ public class SignController {
     private static final String HMAC_SHA1_ALGORITHM = "HmacSHA1";
 
     @RequestMapping("/signv4_auth")
-    public String getSignv4Auth(HttpServletRequest request) throws ServletException {
+    public String getSignv4Auth(HttpServletRequest request) {
         String data = request.getParameter("to_sign");
 
         if (StringUtils.isEmpty(data)) {
@@ -40,7 +40,7 @@ public class SignController {
      * @throws ServletException
      * @throws java.security.SignatureException when signature generation fails
      */
-    public static String calculateRFC2104HMAC(String data, String key) throws ServletException {
+    public static String calculateRFC2104HMAC(String data, String key) {
         String result;
         try {
             // get an hmac_sha1 key from the raw key bytes
@@ -56,7 +56,7 @@ public class SignController {
             // base64-encode the hmac
             result = new String(Base64.encodeBase64(rawHmac));
         } catch (Exception e) {
-            throw new ServletException("Failed to generate HMAC: " + e.getMessage());
+            throw new RuntimeException("Failed to generate HMAC: " + e.getMessage());
         }
         return result;
     }

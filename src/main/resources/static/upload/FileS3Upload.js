@@ -167,6 +167,9 @@
                 }
         };
 
+        /**
+         * s3 获取请求签名
+         */
         self._sign_request = function(method, suffix_to_sign, contentType, success_callback){
             var xhr = self.getXmlHttp(),
                 to_sign,
@@ -232,6 +235,7 @@
             if(xhr.upload){
                 xhr.upload.addEventListener("progress", function(prog) {
 //                    value = ~~((prog.loaded / prog.total) * 100);
+                    //TODO: 上传进度变更的回调
                     self.config.on_progress && self.config.on_progress(self.total, self.loaded + prog.loaded);
                 }, false);
             }
@@ -243,10 +247,12 @@
                         self.parts.push(ETag);
 
                         self.loaded += blob.size;
+                        //TODO: 上传进度变更的回调
                         self.config.on_progress && self.config.on_progress(self.total, self.loaded);
                         // put it here becouse in future we should keep for unuploaded parts
-
+                        //TODO: 上传分片成功的回调
                         self.config.on_part_upload && self.config.on_part_upload(xhr, ETag, self.current_part);
+
                         self.current_part += 1;
                         setTimeout(function(){  // to avoid recursion
                             self._send_part();
@@ -270,6 +276,7 @@
                         uploadId = xhr.response.match(/<UploadId\>(.+)<\/UploadId\>/);
                         if (uploadId && uploadId[1]){
                             self.UploadId = uploadId[1];
+                            //TODO：获取到 UploadId 的回调
                             log('Got UploadId: ' + self.UploadId);
                             self.config.on_get_upload_id && self.config.on_get_upload_id(xhr, self.UploadId);
                             setTimeout(function(){
@@ -297,6 +304,7 @@
                 self.base_onreadystatechange({
                     f_200: function(){
                         log('END');
+                        //TODO: 上传完成回调
                         self.config.on_multipart_upload_complete && self.config.on_multipart_upload_complete(xhr);
                     },
                     name_non_200_error: 'on_complete_multipart_error'

@@ -25,10 +25,21 @@
                 bucket: "school-repo",
                 aws_key_id: "U2A27HEBIS06RIF3JOBC",
                 auth_url_headers: {},
+                on_get_upload_id: function (xhr, uploadId) {
+                    console.log("获取uploadLoadId回调：uploadId=" + uploadId);
+                },
+                on_progress: function (total, loaded) {
+                    console.log("上传进度变更回调：upload percent=" + (loaded / total * 100).toFixed(2) + "%");
+                },
+                on_part_upload: function (xhr, ETag, current_part) {
+                    console.log("上传分片成功回调：ETag=" + ETag + "; current_part=" + current_part);
+                },
+                on_multipart_upload_complete: function (xhr) {
+                    console.log("上传成功");
+                }
             });
 
             fileUploadTest.init_multipart_upload();
-            fileUploadTest._send_part();
         });
     });
 </script>
